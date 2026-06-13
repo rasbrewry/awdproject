@@ -1,0 +1,444 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AWD Field Data Toolkit</title>
+<style>
+  :root {
+    --ink: #1c2420;
+    --paper: #eef1ec;
+    --card: #ffffff;
+    --fern: #1e4634;
+    --fern-light: #2d6a4e;
+    --water: #2e7fd1;
+    --alert: #a83232;
+    --line: #d6dcd4;
+    --muted: #5f6b62;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    font: 15px/1.55 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    background: var(--paper); color: var(--ink); min-height: 100vh;
+  }
+
+  header {
+    background: var(--fern); color: #e8efe9; padding: 22px 28px 18px;
+    border-bottom: 3px dotted var(--alert);
+  }
+  header h1 { font-size: 21px; font-weight: 650; letter-spacing: .2px; }
+  header p { font-size: 13px; color: #b8cabd; margin-top: 3px; font-family: var(--mono); }
+
+  nav { display: flex; gap: 0; background: var(--fern); padding: 0 28px; }
+  nav button {
+    appearance: none; border: 0; background: transparent; color: #b8cabd;
+    font: 600 14px/1 inherit; padding: 13px 20px; cursor: pointer;
+    border-bottom: 3px solid transparent;
+  }
+  nav button.active { color: #fff; border-bottom-color: #e8efe9; background: rgba(255,255,255,.06); }
+  nav button:focus-visible { outline: 2px solid #fff; outline-offset: -2px; }
+
+  main { max-width: 1060px; margin: 0 auto; padding: 26px 22px 70px; }
+  .tool { display: none; }
+  .tool.active { display: block; }
+
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 22px; margin-bottom: 18px;
+  }
+  .card h2 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .card .hint { font-size: 13px; color: var(--muted); margin-bottom: 14px; }
+
+  .drop {
+    border: 2px dashed var(--line); border-radius: 8px; padding: 20px;
+    text-align: center; color: var(--muted); font-size: 14px; cursor: pointer;
+    transition: border-color .15s, background .15s; background: #fafbf9;
+  }
+  .drop:hover, .drop.over { border-color: var(--fern-light); background: #f2f7f3; }
+  .drop.loaded { border-style: solid; border-color: var(--fern-light); color: var(--ink); background: #f2f7f3; }
+  .drop strong { color: var(--fern-light); }
+  .drop .file-name { font-family: var(--mono); font-size: 13px; margin-top: 4px; word-break: break-all; }
+  .drop input { display: none; }
+
+  .row { display: flex; gap: 16px; flex-wrap: wrap; }
+  .row > * { flex: 1; min-width: 240px; }
+
+  label.field { display: block; font-size: 13px; font-weight: 600; margin: 14px 0 5px; }
+  select, input[type=text], input[type=number], input[type=date] {
+    width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 7px;
+    font: 14px var(--mono); background: #fff; color: var(--ink);
+  }
+  select:focus, input:focus { outline: 2px solid var(--water); outline-offset: 1px; border-color: var(--water); }
+
+  .pipe-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(86px, 1fr));
+    gap: 6px; max-height: 220px; overflow-y: auto; padding: 4px;
+    border: 1px solid var(--line); border-radius: 8px; background: #fafbf9;
+  }
+  .pipe-grid label {
+    display: flex; align-items: center; gap: 6px; padding: 6px 9px;
+    font: 13px var(--mono); border-radius: 6px; cursor: pointer; border: 1px solid transparent;
+  }
+  .pipe-grid label:hover { background: #eef4ee; }
+  .pipe-grid input { accent-color: var(--fern-light); }
+  .pipe-grid label.awd::after { content: "AWD"; font-size: 10px; color: var(--fern-light); margin-left: auto; }
+  .pipe-grid label.cf::after  { content: "CF";  font-size: 10px; color: var(--muted); margin-left: auto; }
+
+  .btn {
+    appearance: none; border: 0; border-radius: 8px; cursor: pointer;
+    font: 600 14px/1 inherit; padding: 12px 22px; margin-top: 16px;
+    background: var(--fern-light); color: #fff;
+  }
+  .btn:hover { background: var(--fern); }
+  .btn:disabled { background: #aab6ac; cursor: not-allowed; }
+  .btn.ghost { background: transparent; color: var(--fern-light); border: 1px solid var(--fern-light); margin-left: 8px; }
+  .btn:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
+
+  .quick { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; }
+  .quick button {
+    appearance: none; border: 1px solid var(--line); background: #fff; border-radius: 14px;
+    padding: 4px 12px; font: 12px var(--mono); cursor: pointer; color: var(--muted);
+  }
+  .quick button:hover { border-color: var(--fern-light); color: var(--fern-light); }
+
+  .status { margin-top: 14px; font-size: 14px; font-family: var(--mono); }
+  .status.err { color: var(--alert); }
+  .status.ok  { color: var(--fern-light); }
+  .spinner { display: inline-block; width: 13px; height: 13px; border: 2px solid var(--line);
+             border-top-color: var(--fern-light); border-radius: 50%; animation: spin .7s linear infinite;
+             vertical-align: -2px; margin-right: 7px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2s; } }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 14px; font-size: 13.5px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .4px; color: var(--muted); }
+  td { font-family: var(--mono); }
+  tr.inside td  { background: #ecf6ee; }
+  tr.near td    { background: #fbf4e4; }
+  .pill { display: inline-block; padding: 2px 9px; border-radius: 10px; font-size: 12px; font-weight: 600; }
+  .pill.inside  { background: #d3ecd9; color: #1c5c33; }
+  .pill.near    { background: #f4e3b6; color: #7a5a10; }
+  .pill.outside { background: #e8e8e8; color: #666; }
+  .pill.nocoord { background: #f3d9d9; color: var(--alert); }
+
+  .verdict {
+    margin-top: 16px; padding: 14px 16px; border-radius: 8px; background: #ecf6ee;
+    border-left: 4px solid var(--fern-light); font-size: 14.5px;
+  }
+  .verdict b { font-family: var(--mono); }
+
+  #chartBox img { width: 100%; border: 1px solid var(--line); border-radius: 8px; margin-top: 14px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; font-family: var(--mono); padding: 20px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AWD Field Data Toolkit</h1>
+  <p>gas chamber × pipe cross-check &nbsp;·&nbsp; water level time series</p>
+</header>
+
+<nav>
+  <button class="active" data-tab="locate" onclick="showTab('locate')">1 · Pipe Locator</button>
+  <button data-tab="plot" onclick="showTab('plot')">2 · Water Level Plotter</button>
+</nav>
+
+<main>
+
+<!-- ============================================================ TAB 1 -->
+<section class="tool active" id="tab-locate">
+  <div class="card">
+    <h2>Which pipes are inside the gas chamber areas?</h2>
+    <p class="hint">Upload the map (KMZ or KML with chamber polygons) and the water monitoring workbook (with a Pipe Information sheet). The check uses point-in-polygon plus a configurable near-miss distance.</p>
+
+    <div class="row">
+      <div>
+        <div class="drop" id="dropKml" tabindex="0">
+          <strong>KMZ / KML map</strong><br>drop file here or click to browse
+          <div class="file-name"></div>
+          <input type="file" accept=".kmz,.kml">
+        </div>
+      </div>
+      <div>
+        <div class="drop" id="dropXls1" tabindex="0">
+          <strong>Excel workbook</strong><br>drop file here or click to browse
+          <div class="file-name"></div>
+          <input type="file" accept=".xlsx,.xlsm">
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div>
+        <label class="field" for="catSel">Pipe category to check</label>
+        <select id="catSel">
+          <option value="AWD" selected>AWD only (standard)</option>
+          <option value="CF">CF only</option>
+          <option value="ALL">All pipes</option>
+        </select>
+      </div>
+      <div>
+        <label class="field" for="thrM">Near-miss distance (meters)</label>
+        <input type="number" id="thrM" value="15" min="0" step="1">
+      </div>
+    </div>
+
+    <button class="btn" id="btnLocate" onclick="runLocate()">Run cross-check</button>
+    <div class="status" id="statusLocate"></div>
+    <div id="locateOut"></div>
+  </div>
+</section>
+
+<!-- ============================================================ TAB 2 -->
+<section class="tool" id="tab-plot">
+  <div class="card">
+    <h2>Plot water levels over time</h2>
+    <p class="hint">Upload the workbook — the toolkit reads every monitoring sheet automatically, evaluates the =X−15 formula cells, and finds all pipes. Then pick what to plot.</p>
+
+    <div class="drop" id="dropXls2" tabindex="0">
+      <strong>Excel workbook</strong><br>drop file here or click to browse
+      <div class="file-name"></div>
+      <input type="file" accept=".xlsx,.xlsm">
+    </div>
+    <div class="status" id="statusInspect"></div>
+
+    <div id="plotControls" style="display:none">
+      <label class="field" for="sheetSel">Monitoring sheet</label>
+      <select id="sheetSel" onchange="renderPipeGrid()"></select>
+
+      <label class="field">Pipes to plot</label>
+      <div class="pipe-grid" id="pipeGrid"></div>
+      <div class="quick">
+        <button onclick="quickSelect('awd')">select all AWD</button>
+        <button onclick="quickSelect('cf')">select all CF</button>
+        <button onclick="quickSelect('gas')">gas area pipes only</button>
+        <button onclick="quickSelect('none')">clear</button>
+      </div>
+
+      <div class="row">
+        <div>
+          <label class="field" for="dFrom">From date <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+          <input type="date" id="dFrom">
+        </div>
+        <div>
+          <label class="field" for="dTo">To date <span style="font-weight:400;color:var(--muted)">(optional)</span></label>
+          <input type="date" id="dTo">
+        </div>
+        <div>
+          <label class="field" for="thrCm">AWD threshold line (cm)</label>
+          <input type="text" id="thrCm" value="-15" placeholder="blank = no line">
+        </div>
+      </div>
+
+      <button class="btn" id="btnPlot" onclick="runPlot()">Generate chart</button>
+      <button class="btn ghost" id="btnDl" onclick="downloadChart()" style="display:none">Download PNG</button>
+      <div class="status" id="statusPlot"></div>
+      <div id="chartBox"></div>
+    </div>
+  </div>
+</section>
+
+</main>
+<footer>runs entirely on this computer — no data leaves your machine</footer>
+
+<script>
+/* ---------------- tab switching ---------------- */
+function showTab(name) {
+  document.querySelectorAll('.tool').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('nav button').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  document.querySelector(`nav button[data-tab=${name}]`).classList.add('active');
+}
+
+/* ---------------- drag & drop wiring ---------------- */
+const files = { kml: null, xls1: null, xls2: null };
+
+function wireDrop(id, key, onSet) {
+  const box = document.getElementById(id);
+  const input = box.querySelector('input');
+  const nameEl = box.querySelector('.file-name');
+  const set = f => {
+    files[key] = f;
+    box.classList.add('loaded');
+    nameEl.textContent = f.name;
+    if (onSet) onSet(f);
+  };
+  box.addEventListener('click', () => input.click());
+  box.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); input.click(); } });
+  input.addEventListener('change', () => input.files[0] && set(input.files[0]));
+  ['dragover','dragenter'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.add('over'); }));
+  ['dragleave','drop'].forEach(ev => box.addEventListener(ev, e => { e.preventDefault(); box.classList.remove('over'); }));
+  box.addEventListener('drop', e => e.dataTransfer.files[0] && set(e.dataTransfer.files[0]));
+}
+
+wireDrop('dropKml', 'kml');
+wireDrop('dropXls1', 'xls1');
+wireDrop('dropXls2', 'xls2', inspectWorkbook);
+
+function setStatus(id, msg, cls) {
+  const el = document.getElementById(id);
+  el.className = 'status ' + (cls || '');
+  el.innerHTML = msg || '';
+}
+const busy = msg => `<span class="spinner"></span>${msg}`;
+
+/* ================= TAB 1: locator ================= */
+async function runLocate() {
+  if (!files.kml)  return setStatus('statusLocate', 'Add the KMZ/KML map first.', 'err');
+  if (!files.xls1) return setStatus('statusLocate', 'Add the Excel workbook first.', 'err');
+  setStatus('statusLocate', busy('Checking pipe coordinates against chamber polygons…'));
+  document.getElementById('btnLocate').disabled = true;
+  document.getElementById('locateOut').innerHTML = '';
+
+  const fd = new FormData();
+  fd.append('kml', files.kml);
+  fd.append('excel', files.xls1);
+  fd.append('category', document.getElementById('catSel').value);
+  fd.append('threshold', document.getElementById('thrM').value || '15');
+
+  try {
+    const r = await fetch('/api/locate', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Request failed');
+    renderLocate(j);
+    setStatus('statusLocate', `Checked ${j.summary.checked} pipes against ${j.polygons.length} chamber polygon(s).`, 'ok');
+  } catch (e) {
+    setStatus('statusLocate', e.message, 'err');
+  } finally {
+    document.getElementById('btnLocate').disabled = false;
+  }
+}
+
+function renderLocate(j) {
+  const inside = j.summary.inside, near = j.summary.near;
+  let html = `<div class="verdict">Pipes inside a gas chamber area: <b>${inside.length ? inside.join(', ') : 'none'}</b>`;
+  if (near.length) html += `<br>Near-miss (within threshold): <b>${near.join(', ')}</b>`;
+  html += `</div>`;
+
+  html += `<table><thead><tr><th>Pipe</th><th>Category</th><th>Farmer</th><th>Status</th><th>Chamber</th><th>Distance</th></tr></thead><tbody>`;
+  const order = { inside: 0, near: 1, outside: 2, 'no coordinates': 3 };
+  j.results.sort((a, b) => (order[a.status] - order[b.status]) || (a.pipe - b.pipe));
+  for (const r of j.results) {
+    const cls = r.status === 'no coordinates' ? 'nocoord' : r.status;
+    html += `<tr class="${r.status}"><td>${r.pipe}</td><td>${r.category || '—'}</td><td>${r.farmer || '—'}</td>
+      <td><span class="pill ${cls}">${r.status}</span></td>
+      <td>${r.chamber || '—'}</td>
+      <td>${r.distance_m == null ? '—' : r.distance_m === 0 ? 'inside' : r.distance_m + ' m'}</td></tr>`;
+  }
+  html += `</tbody></table>`;
+  if (j.warnings.length) html += `<p class="status err" style="margin-top:10px">${j.warnings.join(' · ')}</p>`;
+  document.getElementById('locateOut').innerHTML = html;
+}
+
+/* ================= TAB 2: plotter ================= */
+let inspected = null;
+let pipeCategories = {};   // pipe -> AWD/CF
+let gasAreaPipes = [];
+
+async function inspectWorkbook(f) {
+  setStatus('statusInspect', busy('Reading workbook…'));
+  document.getElementById('plotControls').style.display = 'none';
+  const fd = new FormData();
+  fd.append('excel', f);
+  try {
+    const r = await fetch('/api/inspect', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Could not read file');
+    inspected = j;
+    pipeCategories = {};
+    for (const p of j.pipe_info.pipes) pipeCategories[p.pipe] = p.category;
+    const gas = j.monitoring_sheets.find(s => s.axis === 'dat' || /gas/i.test(s.name));
+    gasAreaPipes = gas ? gas.pipes : [];
+
+    const sel = document.getElementById('sheetSel');
+    sel.innerHTML = '';
+    for (const s of j.monitoring_sheets) {
+      const o = document.createElement('option');
+      o.value = s.name;
+      o.textContent = `${s.name} — ${s.pipes.length} pipes, ${s.axis === 'date' ? s.first + ' → ' + s.last : 'DAT ' + s.first + '–' + s.last}`;
+      sel.appendChild(o);
+    }
+    renderPipeGrid();
+    document.getElementById('plotControls').style.display = 'block';
+    setStatus('statusInspect',
+      `${j.monitoring_sheets.length} monitoring sheet(s), ${j.pipe_info.count} pipes in metadata.`, 'ok');
+  } catch (e) {
+    setStatus('statusInspect', e.message, 'err');
+  }
+}
+
+function currentSheet() {
+  return inspected.monitoring_sheets.find(s => s.name === document.getElementById('sheetSel').value);
+}
+
+function renderPipeGrid() {
+  const s = currentSheet();
+  const grid = document.getElementById('pipeGrid');
+  grid.innerHTML = '';
+  for (const p of s.pipes) {
+    const cat = (pipeCategories[p] || '').toLowerCase();
+    const lab = document.createElement('label');
+    if (cat === 'awd' || cat === 'cf') lab.classList.add(cat);
+    lab.innerHTML = `<input type="checkbox" value="${p}"> ${p}`;
+    grid.appendChild(lab);
+  }
+  // date inputs only make sense on date-axis sheets
+  const isDate = s.axis === 'date';
+  document.getElementById('dFrom').disabled = !isDate;
+  document.getElementById('dTo').disabled = !isDate;
+  if (isDate) { document.getElementById('dFrom').min = s.first; document.getElementById('dTo').max = s.last; }
+}
+
+function quickSelect(mode) {
+  document.querySelectorAll('#pipeGrid input').forEach(cb => {
+    const p = parseInt(cb.value);
+    const cat = (pipeCategories[p] || '').toUpperCase();
+    if (mode === 'none') cb.checked = false;
+    else if (mode === 'awd') cb.checked = cat === 'AWD';
+    else if (mode === 'cf') cb.checked = cat === 'CF';
+    else if (mode === 'gas') cb.checked = gasAreaPipes.includes(p);
+  });
+}
+
+let lastPng = null;
+async function runPlot() {
+  const chosen = [...document.querySelectorAll('#pipeGrid input:checked')].map(c => c.value);
+  if (!chosen.length) return setStatus('statusPlot', 'Tick at least one pipe.', 'err');
+  setStatus('statusPlot', busy('Generating chart…'));
+  document.getElementById('btnPlot').disabled = true;
+
+  const fd = new FormData();
+  fd.append('excel', files.xls2);
+  fd.append('sheet', document.getElementById('sheetSel').value);
+  fd.append('pipes', chosen.join(','));
+  fd.append('threshold', document.getElementById('thrCm').value.trim());
+  fd.append('date_from', document.getElementById('dFrom').value);
+  fd.append('date_to', document.getElementById('dTo').value);
+
+  try {
+    const r = await fetch('/api/plot', { method: 'POST', body: fd });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || 'Plot failed');
+    lastPng = j.png;
+    document.getElementById('chartBox').innerHTML = `<img alt="Water level chart" src="data:image/png;base64,${j.png}">`;
+    document.getElementById('btnDl').style.display = 'inline-block';
+    setStatus('statusPlot', `Chart ready — pipes ${chosen.join(', ')}.`, 'ok');
+  } catch (e) {
+    setStatus('statusPlot', e.message, 'err');
+  } finally {
+    document.getElementById('btnPlot').disabled = false;
+  }
+}
+
+function downloadChart() {
+  if (!lastPng) return;
+  const a = document.createElement('a');
+  a.href = 'data:image/png;base64,' + lastPng;
+  a.download = 'water_level_' + new Date().toISOString().slice(0,10) + '.png';
+  a.click();
+}
+</script>
+</body>
+</html>
